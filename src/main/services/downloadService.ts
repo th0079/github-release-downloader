@@ -1,8 +1,8 @@
-import { createWriteStream } from "node:fs";
-import { access, mkdir } from "node:fs/promises";
+﻿import { createWriteStream } from "node:fs";
 import { constants } from "node:fs";
-import { request } from "node:https";
+import { access, mkdir, unlink } from "node:fs/promises";
 import type { ClientRequest, IncomingMessage } from "node:http";
+import { request } from "node:https";
 import { join, parse } from "node:path";
 
 import type { DownloadAssetInput, DownloadJob } from "../../shared/types.js";
@@ -53,6 +53,24 @@ function performRequest(url: string, jobId: string, handleResponse: (response: I
   return req;
 }
 
+async function removePartialFile(targetPath: string): Promise<void> {
+  try {
+    await unlink(targetPath);
+  } catch {
+    // Ignore cleanup failures so the original download error can surface.
+  }
+}
+
+function getDownloadErrorMessage(errorMessage: string, fileError = false): string {
+  if (errorMessage === "cancelled") return "다운로드가 취소되었습니다.";
+  if (errorMessage === "redirect_limit") return "리다이렉트가 너무 많아 다운로드를 중단했습니다.";
+  if (/^http_403$/.test(errorMessage)) return "다운로드 권한이 없거나 일시적으로 차단되었습니다.";
+  if (/^http_404$/.test(errorMessage)) return "다운로드 파일을 찾을 수 없습니다.";
+  if (/^http_/.test(errorMessage)) return "다운로드 중 서버 오류가 발생했습니다.";
+  if (fileError) return "파일 저장 중 오류가 발생했습니다.";
+  return "다운로드 중 오류가 발생했습니다.";
+}
+
 export function cancelDownload(jobId: string): boolean {
   const requestRef = activeRequests.get(jobId);
   if (!requestRef) {
@@ -89,6 +107,19 @@ export async function downloadAsset(
   return await new Promise<DownloadJob>((resolve, reject) => {
     const fileStream = createWriteStream(targetPath, { flags: "w" });
     let redirectCount = 0;
+    let settled = false;
+
+    const failJob = async (error: Error, fileError = false): Promise<void> => {
+      if (settled) return;
+      settled = true;
+      activeRequests.delete(job.id);
+      job.status = error.message === "cancelled" ? "cancelled" : "failed";
+      job.errorMessage = getDownloadErrorMessage(error.message, fileError);
+      onProgress({ ...job });
+      fileStream.destroy();
+      await removePartialFile(targetPath);
+      reject(error);
+    };
 
     const requestWithRedirects = (url: string): void => {
       const req = performRequest(url, job.id, (res) => {
@@ -125,28 +156,20 @@ export async function downloadAsset(
         });
 
         res.on("error", (error: Error) => {
-          activeRequests.delete(job.id);
-          fileStream.destroy(error);
+          void failJob(error);
         });
 
         res.pipe(fileStream, { end: true });
       });
 
       req.on("error", (error) => {
-        activeRequests.delete(job.id);
-        job.status = error.message === "cancelled" ? "cancelled" : "failed";
-        job.errorMessage =
-          error.message === "cancelled"
-            ? "다운로드가 취소되었습니다."
-            : error.message === "redirect_limit"
-              ? "리다이렉트가 너무 많아 다운로드를 중단했습니다."
-              : "다운로드 중 오류가 발생했습니다.";
-        onProgress({ ...job });
-        reject(error);
+        void failJob(error);
       });
     };
 
     fileStream.on("finish", () => {
+      if (settled) return;
+      settled = true;
       activeRequests.delete(job.id);
       job.status = "completed";
       onProgress({ ...job });
@@ -154,11 +177,7 @@ export async function downloadAsset(
     });
 
     fileStream.on("error", (error: Error) => {
-      activeRequests.delete(job.id);
-      job.status = error.message === "cancelled" ? "cancelled" : "failed";
-      job.errorMessage = error.message === "cancelled" ? "다운로드가 취소되었습니다." : "파일 저장 중 오류가 발생했습니다.";
-      onProgress({ ...job });
-      reject(error);
+      void failJob(error, true);
     });
 
     requestWithRedirects(input.asset.downloadUrl);

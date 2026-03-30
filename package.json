@@ -1,6 +1,6 @@
 {
   "name": "github-release-downloader",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Electron desktop app for browsing GitHub releases and downloading assets.",
   "main": "dist/main/main.js",
   "scripts": {
@@ -24,4 +24,3 @@
     "typescript": "^5.9.3"
   }
 }
-

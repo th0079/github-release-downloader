@@ -1,7 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+﻿import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { app } from "electron";
+import { app, safeStorage } from "electron";
 
 import type { SettingsState } from "../../shared/types.js";
 
@@ -9,6 +9,7 @@ interface StoredSettings {
   lastDownloadDirectory: string | null;
   recentRepositories: string[];
   githubToken: string | null;
+  githubTokenEncrypted?: string | null;
 }
 
 const defaultStoredSettings: StoredSettings = {
@@ -33,6 +34,26 @@ function toPublicSettings(settings: StoredSettings): SettingsState {
   };
 }
 
+function encryptToken(token: string): string {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return token;
+  }
+
+  return safeStorage.encryptString(token).toString("base64");
+}
+
+function decryptToken(value: string): string | null {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      return value.trim() || null;
+    }
+
+    return safeStorage.decryptString(Buffer.from(value, "base64")).trim() || null;
+  } catch {
+    return value.trim() || null;
+  }
+}
+
 async function loadStoredSettings(): Promise<StoredSettings> {
   const settingsPath = getSettingsPath();
 
@@ -43,7 +64,12 @@ async function loadStoredSettings(): Promise<StoredSettings> {
     return {
       lastDownloadDirectory: parsed.lastDownloadDirectory ?? null,
       recentRepositories: Array.isArray(parsed.recentRepositories) ? parsed.recentRepositories.slice(0, 5) : [],
-      githubToken: typeof parsed.githubToken === "string" && parsed.githubToken.trim().length > 0 ? parsed.githubToken.trim() : null
+      githubToken:
+        typeof parsed.githubTokenEncrypted === "string" && parsed.githubTokenEncrypted.trim().length > 0
+          ? decryptToken(parsed.githubTokenEncrypted)
+          : typeof parsed.githubToken === "string" && parsed.githubToken.trim().length > 0
+            ? parsed.githubToken.trim()
+            : null
     };
   } catch {
     return defaultStoredSettings;
@@ -53,7 +79,15 @@ async function loadStoredSettings(): Promise<StoredSettings> {
 async function saveStoredSettings(settings: StoredSettings): Promise<void> {
   const settingsPath = getSettingsPath();
   await ensureSettingsDirectory(settingsPath);
-  await writeFile(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+
+  const serialized: StoredSettings = {
+    lastDownloadDirectory: settings.lastDownloadDirectory,
+    recentRepositories: settings.recentRepositories,
+    githubToken: null,
+    githubTokenEncrypted: settings.githubToken ? encryptToken(settings.githubToken) : null
+  };
+
+  await writeFile(settingsPath, JSON.stringify(serialized, null, 2), "utf8");
 }
 
 export async function loadSettings(): Promise<SettingsState> {

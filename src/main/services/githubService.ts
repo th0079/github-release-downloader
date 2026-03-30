@@ -1,4 +1,4 @@
-import { request } from "node:https";
+﻿import { request } from "node:https";
 
 import type {
   ApiResult,
@@ -64,6 +64,13 @@ function getResetTimestamp(headers: Record<string, string | string[] | undefined
     return Date.now() + 60_000;
   }
   return seconds * 1000;
+}
+
+function formatRateLimitResetTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 async function apiRequest<T>(path: string): Promise<{ statusCode: number; data: T; headers: Record<string, string | string[] | undefined> }> {
@@ -163,7 +170,13 @@ export async function searchRepositorySuggestions(queryInput: string): Promise<A
 
   const now = Date.now();
   if (searchRateLimitedUntil > now) {
-    return { ok: true, data: [] };
+    return {
+      ok: false,
+      error: {
+        code: "RATE_LIMITED",
+        message: `GitHub 검색 제한에 걸렸습니다. ${formatRateLimitResetTime(searchRateLimitedUntil)} 이후 다시 시도해 주세요.`
+      }
+    };
   }
 
   const cached = searchCache.get(query);
@@ -175,17 +188,23 @@ export async function searchRepositorySuggestions(queryInput: string): Promise<A
     const response = await apiRequest<GitHubSearchRepositoriesResponse>(`/search/repositories?q=${encodeURIComponent(query)}&sort=stars&per_page=8`);
     if (response.statusCode === 403) {
       searchRateLimitedUntil = getResetTimestamp(response.headers);
-      return { ok: true, data: [] };
+      return {
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: `GitHub 검색 제한에 걸렸습니다. ${formatRateLimitResetTime(searchRateLimitedUntil)} 이후 다시 시도해 주세요.`
+        }
+      };
     }
     if (response.statusCode >= 400) {
-      return { ok: false, error: { code: "NETWORK_ERROR", message: "Failed to search repositories." } };
+      return { ok: false, error: { code: "NETWORK_ERROR", message: "저장소 검색에 실패했습니다." } };
     }
 
     const data = response.data.items.map(normalizeSuggestion);
     searchCache.set(query, { expiresAt: Date.now() + 5 * 60_000, data });
     return { ok: true, data };
   } catch {
-    return { ok: false, error: { code: "NETWORK_ERROR", message: "Network error while searching repositories." } };
+    return { ok: false, error: { code: "NETWORK_ERROR", message: "저장소 검색 중 네트워크 오류가 발생했습니다." } };
   }
 }
 
@@ -193,7 +212,7 @@ export async function lookupRepositoryWithReleases(repositoryInput: string): Pro
   const repository = repositoryInput.trim();
 
   if (!repoPattern.test(repository)) {
-    return { ok: false, error: { code: "INVALID_REPOSITORY", message: "Enter the repository as owner/repo." } };
+    return { ok: false, error: { code: "INVALID_REPOSITORY", message: "저장소를 owner/repo 형식으로 입력해 주세요." } };
   }
 
   const cached = repositoryLookupCache.get(repository.toLowerCase());
@@ -208,24 +227,24 @@ export async function lookupRepositoryWithReleases(repositoryInput: string): Pro
     ]);
 
     if (repositoryResponse.statusCode === 404) {
-      return { ok: false, error: { code: "NOT_FOUND", message: "Repository not found." } };
+      return { ok: false, error: { code: "NOT_FOUND", message: "저장소를 찾을 수 없습니다." } };
     }
     if (repositoryResponse.statusCode === 403 || releasesResponse.statusCode === 403) {
-      return { ok: false, error: { code: "RATE_LIMITED", message: "GitHub API rate limit reached. Try again later." } };
+      return { ok: false, error: { code: "RATE_LIMITED", message: "GitHub API rate limit에 도달했습니다. 잠시 후 다시 시도해 주세요." } };
     }
     if (repositoryResponse.statusCode >= 400 || releasesResponse.statusCode >= 400) {
-      return { ok: false, error: { code: "NETWORK_ERROR", message: "Failed to fetch GitHub repository data." } };
+      return { ok: false, error: { code: "NETWORK_ERROR", message: "GitHub 저장소 정보를 불러오지 못했습니다." } };
     }
 
     const normalizedReleases = releasesResponse.data.map(normalizeRelease);
     if (normalizedReleases.length === 0) {
-      return { ok: false, error: { code: "NO_RELEASES", message: "This repository has no public releases." } };
+      return { ok: false, error: { code: "NO_RELEASES", message: "이 저장소에는 공개 릴리스가 없습니다." } };
     }
 
     const data = { repository: normalizeRepository(repositoryResponse.data), releases: normalizedReleases };
     repositoryLookupCache.set(repository.toLowerCase(), { expiresAt: Date.now() + 5 * 60_000, data });
     return { ok: true, data };
   } catch {
-    return { ok: false, error: { code: "NETWORK_ERROR", message: "Network error occurred. Please check your connection." } };
+    return { ok: false, error: { code: "NETWORK_ERROR", message: "네트워크 오류가 발생했습니다. 연결 상태를 확인해 주세요." } };
   }
 }
