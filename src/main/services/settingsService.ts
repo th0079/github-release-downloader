@@ -1,4 +1,4 @@
-﻿import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { app, safeStorage } from "electron";
@@ -18,6 +18,10 @@ const defaultStoredSettings: StoredSettings = {
   githubToken: null
 };
 
+function isSecureTokenStorageAvailable(): boolean {
+  return safeStorage.isEncryptionAvailable();
+}
+
 function getSettingsPath(): string {
   return join(app.getPath("userData"), "settings.json");
 }
@@ -30,27 +34,20 @@ function toPublicSettings(settings: StoredSettings): SettingsState {
   return {
     lastDownloadDirectory: settings.lastDownloadDirectory,
     recentRepositories: settings.recentRepositories,
-    hasGithubToken: Boolean(settings.githubToken)
+    hasGithubToken: Boolean(settings.githubToken),
+    canPersistGithubToken: isSecureTokenStorageAvailable()
   };
 }
 
 function encryptToken(token: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return token;
-  }
-
   return safeStorage.encryptString(token).toString("base64");
 }
 
 function decryptToken(value: string): string | null {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      return value.trim() || null;
-    }
-
     return safeStorage.decryptString(Buffer.from(value, "base64")).trim() || null;
   } catch {
-    return value.trim() || null;
+    return null;
   }
 }
 
@@ -60,16 +57,14 @@ async function loadStoredSettings(): Promise<StoredSettings> {
   try {
     const raw = await readFile(settingsPath, "utf8");
     const parsed = JSON.parse(raw) as Partial<StoredSettings>;
+    const encryptedToken = typeof parsed.githubTokenEncrypted === "string" ? parsed.githubTokenEncrypted.trim() : "";
+    const legacyPlainToken = typeof parsed.githubToken === "string" ? parsed.githubToken.trim() : "";
+    const canDecrypt = isSecureTokenStorageAvailable();
 
     return {
       lastDownloadDirectory: parsed.lastDownloadDirectory ?? null,
       recentRepositories: Array.isArray(parsed.recentRepositories) ? parsed.recentRepositories.slice(0, 5) : [],
-      githubToken:
-        typeof parsed.githubTokenEncrypted === "string" && parsed.githubTokenEncrypted.trim().length > 0
-          ? decryptToken(parsed.githubTokenEncrypted)
-          : typeof parsed.githubToken === "string" && parsed.githubToken.trim().length > 0
-            ? parsed.githubToken.trim()
-            : null
+      githubToken: encryptedToken && canDecrypt ? decryptToken(encryptedToken) : legacyPlainToken && canDecrypt ? legacyPlainToken : null
     };
   } catch {
     return defaultStoredSettings;
@@ -90,6 +85,10 @@ async function saveStoredSettings(settings: StoredSettings): Promise<void> {
   await writeFile(settingsPath, JSON.stringify(serialized, null, 2), "utf8");
 }
 
+export function canPersistGithubToken(): boolean {
+  return isSecureTokenStorageAvailable();
+}
+
 export async function loadSettings(): Promise<SettingsState> {
   return toPublicSettings(await loadStoredSettings());
 }
@@ -100,6 +99,10 @@ export async function getGithubToken(): Promise<string | null> {
 }
 
 export async function saveGithubToken(token: string): Promise<SettingsState> {
+  if (!isSecureTokenStorageAvailable()) {
+    throw new Error("TOKEN_STORAGE_UNAVAILABLE");
+  }
+
   const settings = await loadStoredSettings();
   const next: StoredSettings = {
     ...settings,

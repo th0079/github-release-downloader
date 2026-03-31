@@ -1,4 +1,4 @@
-﻿import { request } from "node:https";
+import { request } from "node:https";
 
 import type {
   ApiResult,
@@ -85,7 +85,7 @@ async function apiRequest<T>(path: string): Promise<{ statusCode: number; data: 
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: githubToken ? `Bearer ${githubToken}` : undefined,
-          "User-Agent": "github-release-downloader",
+          "User-Agent": "release-downloader",
           "X-GitHub-Api-Version": "2022-11-28"
         }
       },

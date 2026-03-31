@@ -42,6 +42,7 @@ header { display: flex; align-items: center; justify-content: space-between; mar
 .search-btn:hover { background: #a5f3ff; }
 .search-btn:disabled { background: var(--border); color: var(--text-faint); cursor: not-allowed; }
 .error-banner { margin-bottom: 20px; padding: 12px 16px; border: 1px solid rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); color: var(--danger); border-radius: 10px; }
+.notice-banner { margin-bottom: 16px; padding: 12px 16px; border: 1px solid rgba(245,158,11,0.28); background: rgba(245,158,11,0.08); color: #fcd34d; border-radius: 10px; font-size: 11px; line-height: 1.6; }
 .header-actions { display: flex; align-items: center; gap: 12px; }
 .header-settings-btn { padding: 8px 14px; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 999px; font-size: 11px; letter-spacing: 0.08em; }
 .header-settings-btn:hover { border-color: var(--border-bright); color: var(--text); }
@@ -55,7 +56,9 @@ header { display: flex; align-items: center; justify-content: space-between; mar
 .token-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 12px; padding: 12px 14px; outline: none; }
 .token-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110,231,247,0.08); }
 .token-status { font-size: 11px; color: var(--text-faint); }
-.token-status.active { color: var(--accent3); }.repo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; }
+.token-status.active { color: var(--accent3); }
+.settings-note { margin-top: 10px; font-size: 11px; line-height: 1.6; color: var(--text-dim); }
+.repo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; }
 .repo-avatar { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--border-bright); background: var(--surface2); flex-shrink: 0; }
 .repo-avatar-fallback { display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 12px; font-weight: 700; }
 .repo-info { flex: 1; min-width: 0; }
@@ -133,6 +136,7 @@ header { display: flex; align-items: center; justify-content: space-between; mar
 .job-badge.complete { color: var(--accent3); border-color: rgba(52,211,153,0.28); }
 .job-badge.fail { color: var(--danger); border-color: rgba(248,113,113,0.28); }
 .job-error { color: var(--danger); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-hash { font-size: 10px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .job-empty { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-faint); font-size: 11px; }
 .prog-name { flex: 1; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prog-pct { color: var(--accent); width: 36px; text-align: right; }

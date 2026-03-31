@@ -9,7 +9,7 @@ function renderFatalError(message: string): void {
   root.innerHTML = `
     <main style="padding:24px;font-family:'Segoe UI','Malgun Gothic',sans-serif;">
       <section style="max-width:860px;margin:0 auto;background:rgba(255,251,245,0.92);border:1px solid rgba(117,89,42,0.12);border-radius:20px;padding:20px;box-shadow:0 20px 50px rgba(73,61,38,0.12);">
-        <h1 style="margin-top:0;">GitHub Release Downloader</h1>
+        <h1 style="margin-top:0;">Release Downloader</h1>
         <p style="color:#b42318;font-weight:700;">${message}</p>
       </section>
     </main>

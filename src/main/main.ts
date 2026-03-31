@@ -16,13 +16,13 @@ function createWindow(): BrowserWindow {
     height: 860,
     minWidth: 1024,
     minHeight: 720,
-    title: "GitHub Release Downloader",
+    title: "Release Downloader",
     icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       preload: preloadPath
     }
   });
@@ -34,7 +34,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  app.setAppUserModelId("github-release-downloader.app");
+  app.setAppUserModelId("release-downloader.app");
   Menu.setApplicationMenu(null);
   registerIpc(() => mainWindow);
   mainWindow = createWindow();

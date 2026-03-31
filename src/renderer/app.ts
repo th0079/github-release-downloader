@@ -18,7 +18,8 @@ interface LogEntry {
 }
 
 const text = {
-  badge: "DESKTOP",
+  appTitle: "Release Downloader",
+  badge: "UNOFFICIAL",
   settingsButton: "SETTINGS",
   settingsTitle: "Settings",
   searchLabel: "Repository Search",
@@ -27,6 +28,9 @@ const text = {
   tokenClear: "CLEAR TOKEN",
   tokenSaved: "Token saved",
   tokenMissing: "No token saved",
+  tokenStorageSecure: "PAT is stored only when OS secure storage is available.",
+  tokenStorageUnavailable: "Secure storage is unavailable on this device, so PAT saving is disabled.",
+  legalNotice: "Unofficial app. Downloaded files are third-party software; verify licenses, publisher trust, and SHA256 before running.",
   searchPlaceholder: "Search repository or owner/repo",
   searchButton: "FETCH",
   repoPrefix: "github.com/",
@@ -141,7 +145,7 @@ export function createApp(root: HTMLDivElement): void {
     lastSuggestionQuery: string;
     settingsOpen: boolean;
   } = {
-    settings: { lastDownloadDirectory: null, recentRepositories: [], hasGithubToken: false },
+    settings: { lastDownloadDirectory: null, recentRepositories: [], hasGithubToken: false, canPersistGithubToken: false },
     repositoryInput: "",
     tokenInput: "",
     result: null,
@@ -306,8 +310,10 @@ export function createApp(root: HTMLDivElement): void {
     if (!state.settingsOpen) return "";
     const statusClass = state.settings.hasGithubToken ? "active" : "idle";
     const statusText = state.settings.hasGithubToken ? text.tokenSaved : text.tokenMissing;
+    const storageMessage = state.settings.canPersistGithubToken ? text.tokenStorageSecure : text.tokenStorageUnavailable;
+    const saveDisabled = state.settings.canPersistGithubToken ? "" : "disabled";
 
-    return `<div class="settings-backdrop" data-action="close-settings"><section class="settings-modal" data-stop-click="true"><div class="settings-header"><div class="settings-title">${text.settingsTitle}</div><button class="settings-close" data-action="close-settings">X</button></div><div class="token-bar"><input class="token-input" name="github-token" value="${escapeHtml(state.tokenInput)}" placeholder="${text.tokenPlaceholder}" /><button class="btn-secondary" data-action="save-token">${text.tokenSave}</button><button class="btn-secondary" data-action="clear-token">${text.tokenClear}</button></div><div class="token-status ${statusClass}">${statusText}</div></section></div>`;
+    return `<div class="settings-backdrop" data-action="close-settings"><section class="settings-modal" data-stop-click="true"><div class="settings-header"><div class="settings-title">${text.settingsTitle}</div><button class="settings-close" data-action="close-settings">X</button></div><div class="token-bar"><input class="token-input" name="github-token" value="${escapeHtml(state.tokenInput)}" placeholder="${text.tokenPlaceholder}" /><button class="btn-secondary" data-action="save-token" ${saveDisabled}>${text.tokenSave}</button><button class="btn-secondary" data-action="clear-token">${text.tokenClear}</button></div><div class="token-status ${statusClass}">${statusText}</div><div class="settings-note">${escapeHtml(storageMessage)}</div></section></div>`;
   }
 
   function renderDropdown(): string {
@@ -368,9 +374,10 @@ export function createApp(root: HTMLDivElement): void {
       const statusText = variant === "complete" ? text.complete : variant === "fail" ? text.fail : text.active;
       const clickable = variant !== "active" ? 'job-row-clickable' : '';
       const action = variant !== "active" ? 'data-action="reveal-download-folder"' : '';
-      const pathAttr = variant !== "active" ? `data-path="${escapeHtml(job.targetPath)}"` : '';
+      const jobIdAttr = variant !== "active" ? `data-job-id="${escapeHtml(job.id)}"` : '';
+      const checksum = job.sha256 ? `<div class="job-hash">SHA256 ${escapeHtml(job.sha256)}</div>` : "";
 
-      return `<button class="job-row ${variant} ${clickable}" ${action} ${pathAttr}><div class="job-main"><span class="prog-name">${escapeHtml(job.assetName)}</span><span class="job-badge ${variant}">${statusText}</span></div><div class="prog-bar-wrap"><div class="prog-bar ${variant === "complete" ? "done" : variant === "fail" ? "fail" : ""}" style="width:${safePercent}%"></div></div><div class="job-meta"><span class="prog-pct">${safePercent}%</span>${job.errorMessage ? `<span class="job-error">${escapeHtml(job.errorMessage)}</span>` : variant !== "active" ? `<span class="job-open-hint">${text.revealFolder}</span>` : ""}</div></button>`;
+      return `<button class="job-row ${variant} ${clickable}" ${action} ${jobIdAttr}><div class="job-main"><span class="prog-name">${escapeHtml(job.assetName)}</span><span class="job-badge ${variant}">${statusText}</span></div><div class="prog-bar-wrap"><div class="prog-bar ${variant === "complete" ? "done" : variant === "fail" ? "fail" : ""}" style="width:${safePercent}%"></div></div><div class="job-meta"><span class="prog-pct">${safePercent}%</span>${job.errorMessage ? `<span class="job-error">${escapeHtml(job.errorMessage)}</span>` : variant !== "active" ? `<span class="job-open-hint">${text.revealFolder}</span>` : ""}</div>${checksum}</button>`;
     }).join("");
   }
 
@@ -433,7 +440,7 @@ export function createApp(root: HTMLDivElement): void {
       repositorySelectionEnd = repositoryActiveElement.selectionEnd;
     }
 
-    const markup = `<div class="app-shell"><main class="app"><header><div class="logo"><img class="logo-image" src="../../assets/logo.svg" alt="GitHub Release Downloader logo" /><div class="logo-text">GitHub Release Downloader</div></div><div class="header-actions"><button class="header-settings-btn" data-action="open-settings">${text.settingsButton}</button><div class="badge">${text.badge}</div></div></header>${renderSettingsModal()}<div class="section-label">${text.searchLabel}</div><div class="search-wrap"><div class="search-bar"><div class="search-prefix"><span>${text.repoPrefix}</span><span class="mode-badge mode-${renderSearchMode()}">${renderSearchMode()}</span></div><input class="search-input" name="repository" value="${escapeHtml(state.repositoryInput)}" placeholder="${text.searchPlaceholder}" /><button class="search-btn" data-action="search" ${state.loading ? "disabled" : ""}>${text.searchButton}</button></div>${renderDropdown()}</div>${state.errorMessage ? `<div class="error-banner">${escapeHtml(state.errorMessage)}</div>` : ""}${renderRepoCard()}${renderReleaseTabs()}<div data-dynamic-content="true">${renderDynamicContent()}</div></main></div>`;
+    const markup = `<div class="app-shell"><main class="app"><header><div class="logo"><img class="logo-image" src="../../assets/logo.svg" alt="Release Downloader logo" /><div class="logo-text">${text.appTitle}</div></div><div class="header-actions"><button class="header-settings-btn" data-action="open-settings">${text.settingsButton}</button><div class="badge">${text.badge}</div></div></header><div class="notice-banner">${escapeHtml(text.legalNotice)}</div>${renderSettingsModal()}<div class="section-label">${text.searchLabel}</div><div class="search-wrap"><div class="search-bar"><div class="search-prefix"><span>${text.repoPrefix}</span><span class="mode-badge mode-${renderSearchMode()}">${renderSearchMode()}</span></div><input class="search-input" name="repository" value="${escapeHtml(state.repositoryInput)}" placeholder="${text.searchPlaceholder}" /><button class="search-btn" data-action="search" ${state.loading ? "disabled" : ""}>${text.searchButton}</button></div>${renderDropdown()}</div>${state.errorMessage ? `<div class="error-banner">${escapeHtml(state.errorMessage)}</div>` : ""}${renderRepoCard()}${renderReleaseTabs()}<div data-dynamic-content="true">${renderDynamicContent()}</div></main></div>`;
 
     if (markup !== lastMarkup) {
       root.innerHTML = markup;
@@ -541,16 +548,16 @@ export function createApp(root: HTMLDivElement): void {
     scheduleRender();
   }
 
-  async function revealDownloadFolder(targetPath: string): Promise<void> {
+  async function revealDownloadFolder(jobId: string): Promise<void> {
     const api = getApi();
     if (!api) { state.errorMessage = text.preloadMissing; scheduleRender(); return; }
-    const result = await api.revealInFolder(targetPath);
+    const result = await api.revealInFolder(jobId);
     if (!result.ok) {
       state.errorMessage = result.error.message;
       scheduleRender();
       return;
     }
-    addLog("ok", `Opened folder for ${targetPath}`);
+    addLog("ok", "Opened download folder.");
   }
 
   function toggleAsset(assetId: number): void {
@@ -664,7 +671,7 @@ export function createApp(root: HTMLDivElement): void {
     if (action === "search") return void (await searchRepository());
     if (action === "choose-directory") return void (await chooseDirectory());
     if (action === "open-repository") return void (await openRepositoryPage(actionTarget.dataset.url ?? ""));
-    if (action === "reveal-download-folder") return void (await revealDownloadFolder(actionTarget.dataset.path ?? ""));
+    if (action === "reveal-download-folder") return void (await revealDownloadFolder(actionTarget.dataset.jobId ?? ""));
     if (action === "scroll-release-tabs") {
       const releaseTabs = root.querySelector<HTMLElement>("[data-release-tabs='true']");
       const direction = actionTarget.dataset.direction === "left" ? -1 : 1;
@@ -769,6 +776,9 @@ export function createApp(root: HTMLDivElement): void {
   api.onDownloadProgress((payload) => {
     const data = payload as { job: DownloadJob };
     upsertJob(data.job);
+    if (data.job.status === "completed" && data.job.sha256) {
+      addLog("ok", `${data.job.assetName}: SHA256 ${data.job.sha256}`);
+    }
     scheduleRender();
   });
   void refreshSettings();

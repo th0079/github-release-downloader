@@ -1,7 +1,7 @@
 {
-  "name": "github-release-downloader",
-  "version": "0.1.2",
-  "description": "Electron desktop app for browsing GitHub releases and downloading assets.",
+  "name": "release-downloader",
+  "version": "0.1.3",
+  "description": "Electron desktop app for browsing GitHub releases and downloading assets safely.",
   "main": "dist/main/main.js",
   "scripts": {
     "clean": "node scripts/clean.mjs",
@@ -28,15 +28,18 @@
     "typescript": "^5.9.3"
   },
   "build": {
-    "appId": "github-release-downloader.app",
-    "productName": "GitHub Release Downloader",
+    "appId": "release-downloader.app",
+    "productName": "Release Downloader",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "LICENSE",
+      "NOTICE.md",
+      "PRIVACY.md"
     ],
     "win": {
       "icon": "assets/app-icon.ico",

@@ -5,6 +5,8 @@ export type ApiErrorCode =
   | "NETWORK_ERROR"
   | "NO_RELEASES"
   | "DOWNLOAD_FAILED"
+  | "INVALID_INPUT"
+  | "TOKEN_STORAGE_UNAVAILABLE"
   | "UNKNOWN_ERROR";
 
 export type ApiResult<T> =
@@ -79,6 +81,7 @@ export interface DownloadJob {
   receivedBytes: number;
   totalBytes: number | null;
   status: DownloadStatus;
+  sha256?: string;
   errorMessage?: string;
 }
 
@@ -90,6 +93,7 @@ export interface SettingsState {
   lastDownloadDirectory: string | null;
   recentRepositories: string[];
   hasGithubToken: boolean;
+  canPersistGithubToken: boolean;
 }
 
 export interface ReleaseDownloaderApi {
@@ -100,7 +104,7 @@ export interface ReleaseDownloaderApi {
   searchRepositories(query: string): Promise<ApiResult<RepositorySuggestion[]>>;
   lookupRepository(input: RepositoryLookupInput): Promise<ApiResult<RepositoryLookupResult>>;
   openExternal(url: string): Promise<ApiResult<boolean>>;
-  revealInFolder(path: string): Promise<ApiResult<boolean>>;
+  revealInFolder(jobId: string): Promise<ApiResult<boolean>>;
   downloadAsset(input: DownloadAssetInput): Promise<ApiResult<DownloadJob>>;
   cancelDownload(jobId: string): Promise<ApiResult<boolean>>;
   onDownloadProgress(listener: (event: DownloadProgressEvent) => void): () => void;
