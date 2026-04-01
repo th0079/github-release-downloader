@@ -1,6 +1,7 @@
 export type ApiErrorCode =
   | "INVALID_REPOSITORY"
   | "NOT_FOUND"
+  | "UNAUTHORIZED"
   | "RATE_LIMITED"
   | "NETWORK_ERROR"
   | "NO_RELEASES"

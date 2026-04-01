@@ -19,7 +19,6 @@ interface LogEntry {
 
 const text = {
   appTitle: "Release Downloader",
-  badge: "UNOFFICIAL",
   settingsButton: "SETTINGS",
   settingsTitle: "Settings",
   searchLabel: "Repository Search",
@@ -30,7 +29,7 @@ const text = {
   tokenMissing: "No token saved",
   tokenStorageSecure: "PAT is stored only when OS secure storage is available.",
   tokenStorageUnavailable: "Secure storage is unavailable on this device, so PAT saving is disabled.",
-  legalNotice: "Unofficial app. Downloaded files are third-party software; verify licenses, publisher trust, and SHA256 before running.",
+  exactSearchRequiredWithoutToken: "PAT 없이 검색할 때는 owner/repo 형식으로 입력해 주세요.",
   searchPlaceholder: "Search repository or owner/repo",
   searchButton: "FETCH",
   repoPrefix: "github.com/",
@@ -252,6 +251,14 @@ export function createApp(root: HTMLDivElement): void {
 
     if (normalizedQuery === state.lastSuggestionQuery) return;
 
+    if (!state.settings.hasGithubToken) {
+      state.lastSuggestionQuery = normalizedQuery;
+      state.suggestions = [];
+      closeDropdown();
+      scheduleRender();
+      return;
+    }
+
     if (normalizedQuery.includes("/") && normalizedQuery.split("/")[1]?.length) {
       state.lastSuggestionQuery = normalizedQuery;
       state.suggestions = [];
@@ -313,7 +320,7 @@ export function createApp(root: HTMLDivElement): void {
     const storageMessage = state.settings.canPersistGithubToken ? text.tokenStorageSecure : text.tokenStorageUnavailable;
     const saveDisabled = state.settings.canPersistGithubToken ? "" : "disabled";
 
-    return `<div class="settings-backdrop" data-action="close-settings"><section class="settings-modal" data-stop-click="true"><div class="settings-header"><div class="settings-title">${text.settingsTitle}</div><button class="settings-close" data-action="close-settings">X</button></div><div class="token-bar"><input class="token-input" name="github-token" value="${escapeHtml(state.tokenInput)}" placeholder="${text.tokenPlaceholder}" /><button class="btn-secondary" data-action="save-token" ${saveDisabled}>${text.tokenSave}</button><button class="btn-secondary" data-action="clear-token">${text.tokenClear}</button></div><div class="token-status ${statusClass}">${statusText}</div><div class="settings-note">${escapeHtml(storageMessage)}</div></section></div>`;
+    return `<div class="settings-backdrop"><section class="settings-modal"><div class="settings-header"><div class="settings-title">${text.settingsTitle}</div><button class="settings-close" data-action="close-settings">X</button></div><div class="token-bar"><input class="token-input" name="github-token" value="${escapeHtml(state.tokenInput)}" placeholder="${text.tokenPlaceholder}" /><button class="btn-secondary" data-action="save-token" ${saveDisabled}>${text.tokenSave}</button><button class="btn-secondary" data-action="clear-token">${text.tokenClear}</button></div><div class="token-status ${statusClass}">${statusText}</div><div class="settings-note">${escapeHtml(storageMessage)}</div></section></div>`;
   }
 
   function renderDropdown(): string {
@@ -440,7 +447,7 @@ export function createApp(root: HTMLDivElement): void {
       repositorySelectionEnd = repositoryActiveElement.selectionEnd;
     }
 
-    const markup = `<div class="app-shell"><main class="app"><header><div class="logo"><img class="logo-image" src="../../assets/logo.svg" alt="Release Downloader logo" /><div class="logo-text">${text.appTitle}</div></div><div class="header-actions"><button class="header-settings-btn" data-action="open-settings">${text.settingsButton}</button><div class="badge">${text.badge}</div></div></header><div class="notice-banner">${escapeHtml(text.legalNotice)}</div>${renderSettingsModal()}<div class="section-label">${text.searchLabel}</div><div class="search-wrap"><div class="search-bar"><div class="search-prefix"><span>${text.repoPrefix}</span><span class="mode-badge mode-${renderSearchMode()}">${renderSearchMode()}</span></div><input class="search-input" name="repository" value="${escapeHtml(state.repositoryInput)}" placeholder="${text.searchPlaceholder}" /><button class="search-btn" data-action="search" ${state.loading ? "disabled" : ""}>${text.searchButton}</button></div>${renderDropdown()}</div>${state.errorMessage ? `<div class="error-banner">${escapeHtml(state.errorMessage)}</div>` : ""}${renderRepoCard()}${renderReleaseTabs()}<div data-dynamic-content="true">${renderDynamicContent()}</div></main></div>`;
+    const markup = `<div class="app-shell"><main class="app"><header><div class="logo"><img class="logo-image" src="../../assets/logo.svg" alt="Release Downloader logo" /><div class="logo-text">${text.appTitle}</div></div><div class="header-actions"><button class="header-settings-btn" data-action="open-settings">${text.settingsButton}</button></div></header>${renderSettingsModal()}<div class="section-label">${text.searchLabel}</div><div class="search-wrap"><div class="search-bar"><div class="search-prefix"><span>${text.repoPrefix}</span><span class="mode-badge mode-${renderSearchMode()}">${renderSearchMode()}</span></div><input class="search-input" name="repository" value="${escapeHtml(state.repositoryInput)}" placeholder="${text.searchPlaceholder}" /><button class="search-btn" data-action="search" ${state.loading ? "disabled" : ""}>${text.searchButton}</button></div>${renderDropdown()}</div>${state.errorMessage ? `<div class="error-banner">${escapeHtml(state.errorMessage)}</div>` : ""}${renderRepoCard()}${renderReleaseTabs()}<div data-dynamic-content="true">${renderDynamicContent()}</div></main></div>`;
 
     if (markup !== lastMarkup) {
       root.innerHTML = markup;
@@ -502,7 +509,20 @@ export function createApp(root: HTMLDivElement): void {
     if (!api) { state.errorMessage = text.preloadMissing; scheduleRender(); return; }
 
     let repositoryToLookup = state.repositoryInput.trim();
+    if (!repositoryToLookup) {
+      state.errorMessage = text.exactSearchRequiredWithoutToken;
+      scheduleRender();
+      return;
+    }
+
     if (!repositoryToLookup.includes("/")) {
+      if (!state.settings.hasGithubToken) {
+        state.errorMessage = text.exactSearchRequiredWithoutToken;
+        closeDropdown();
+        scheduleRender();
+        return;
+      }
+
       const suggestionsResult = await api.searchRepositories(repositoryToLookup);
       if (suggestionsResult.ok && suggestionsResult.data.length > 0) {
         repositoryToLookup = suggestionsResult.data[0].fullName;
@@ -649,6 +669,17 @@ export function createApp(root: HTMLDivElement): void {
 
   root.addEventListener("click", async (event) => {
     const target = event.target as HTMLElement;
+
+    if (state.settingsOpen) {
+      const backdrop = target.closest<HTMLElement>(".settings-backdrop");
+      const modal = target.closest<HTMLElement>(".settings-modal");
+      if (backdrop && !modal) {
+        state.settingsOpen = false;
+        scheduleRender();
+        return;
+      }
+    }
+
     const actionTarget = target.closest<HTMLElement>("[data-action]");
     const action = actionTarget?.dataset.action;
 
@@ -657,10 +688,6 @@ export function createApp(root: HTMLDivElement): void {
         closeDropdown();
         scheduleRender();
       }
-      return;
-    }
-
-    if (target.closest("[data-stop-click='true']") && action !== "close-settings") {
       return;
     }
 
